@@ -5,7 +5,7 @@ from gaze_tracking import GazeTracking
 gaze = GazeTracking()
 
 # Load the video file instead of the webcam feed
-video_path = 'Videos/C0036.MP4'  # Relative path from the project's root directory
+video_path = 'Videos/C0003.MP4'  # Relative path from the project's root directory
 video = cv2.VideoCapture(video_path)
 
 while True:
@@ -48,8 +48,12 @@ while True:
     right_pupil = gaze.pupil_right_coords()
     print(f"Left pupil: {left_pupil}, Right pupil: {right_pupil}")
 
+    # Resize the frame before showing
+    display_size = (1280, 720)  # Set this to your desired display size
+    resized_frame = cv2.resize(frame, display_size)
+
     # Show the frame with annotations (optional, if you want to visualize)
-    cv2.imshow("Gaze Tracking", frame)
+    cv2.imshow("Gaze Tracking", resized_frame)
 
     # Press 'ESC' to exit the loop (if showing the frame)
     if cv2.waitKey(1) == 27:
