@@ -7,32 +7,44 @@ import pandas as pd
 gaze = GazeTracking()
 
 # Define your directory structure
-base_dir = r"C:\Users\est02\Downloads\Videor"  # Adjust path as needed, using raw string to avoid unicode error
+base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"  # Adjust path as needed, using a raw string
 
-# Categories and their subdirectories based on your file structure
-categories = {
-    "Stroke": ["Finger-test/Eye-deviation/Start left", "Finger-test/Eye-deviation/Start mid", "Finger-test/Eye-deviation/Start right"],
-    "Frisk data": ["Med penna/Finger-test", "Utan penna/Fingertest"]
+# Custom labels based on directory paths
+custom_labels = {
+    "Stroke/Finger-test/Eye-deviation/Start left": "Stroke_LeftDeviation",
+    "Stroke/Finger-test/Eye-deviation/Start mid": "Stroke_MidDeviation",
+    "Stroke/Finger-test/Eye-deviation/Start right": "Stroke_RightDeviation",
+    "Frisk data/Med penna/Finger-test": "Not_stroke",
+    "Frisk data/Utan penna/Fingertest": "Not_stroke"
 }
 
 # Placeholder for extracted data
 data = []
 
+# Track directories from which a video has already been processed
+processed_dirs = set()
+
 # Process videos and extract features
-for category, paths in categories.items():
-    for sub_path in paths:
-        full_path = os.path.join(base_dir, category, sub_path)
-        label = sub_path.replace('/', '_')  # Creating a label from the sub-path, replacing slashes with underscores
+for root, dirs, files in os.walk(base_dir):
+    for file in files:
+        # Check if the directory has been processed
+        if root in processed_dirs:
+            continue  # Skip remaining files if one has been processed
 
-        # Iterate through videos in each sub-directory
-        for video_name in os.listdir(full_path):
-            # Skip .XML files, process all other files
-            if video_name.lower().endswith('.xml'):
-                continue
-
-            print(f"Processing video: {video_name}")
-            video_path = os.path.join(full_path, video_name)
+        if not file.lower().endswith('.xml'):  # Skip .XML files
+            video_path = os.path.join(root, file)
             video = cv2.VideoCapture(video_path)
+
+            # Print the name of the video being processed
+            print(f"Processing video: {file}")
+
+            # Determine label based on the directory structure
+            relative_path = os.path.relpath(root, base_dir)  # Get the relative path from the base directory
+            label = "Unknown"  # Default label
+            for path, assigned_label in custom_labels.items():
+                if relative_path.replace('\\', '/').startswith(path):
+                    label = assigned_label
+                    break
 
             while True:
                 ret, frame = video.read()
@@ -53,10 +65,12 @@ for category, paths in categories.items():
                     gaze_direction = 'left'
                 
                 # Append data
-                data.append([video_name, left_pupil, right_pupil, gaze_direction, label])
+                data.append([file, left_pupil, right_pupil, gaze_direction, label])
 
             video.release()
 
+            # Mark this directory as processed
+            processed_dirs.add(root)
 
 # Convert list to DataFrame
 df = pd.DataFrame(data, columns=['video_name', 'left_pupil', 'right_pupil', 'gaze_direction', 'label'])
