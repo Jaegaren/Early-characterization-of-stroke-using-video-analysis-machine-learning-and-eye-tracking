@@ -7,7 +7,10 @@ import pandas as pd
 gaze = GazeTracking()
 
 # Define your directory structure
-base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"  # Adjust path as needed, using a raw string
+# FOR EDDIE'S COMPUTER:
+#base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"  # Adjust path as needed, using a raw string
+# FOR ROBIN'S COMPUTER:
+base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"  # Adjust path as needed, using a raw string
 
 # Custom labels based on directory paths
 custom_labels = {

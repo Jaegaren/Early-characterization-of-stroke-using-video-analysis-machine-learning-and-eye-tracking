@@ -5,7 +5,10 @@ from gaze_tracking import GazeTracking
 gaze = GazeTracking()
 
 # Load the video file instead of the webcam feed
-video_path = 'Videos/C0003.MP4'  # Relative path from the project's root directory
+# FOR PYCHARM:
+#video_path = 'Videos/C0003.MP4'  # Relative path from the project's root directory
+# FOR VSCODE:
+video_path = 'GazeTracking/Videos/C0003.MP4'  # Relative path from the project's root directory
 video = cv2.VideoCapture(video_path)
 
 while True:
