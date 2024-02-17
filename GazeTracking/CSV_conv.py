@@ -10,9 +10,9 @@ gaze = GazeTracking()
 # FOR EDDIE'S COMPUTER:
 #base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"
 # FOR ROBIN'S COMPUTER:
-#base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"
+base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"
 # FOR ROBIN'S LAPTOP:
-base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\Videor"
+#base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\Videor"
 
 # Path to save CSV files
 save_dir = os.path.join("GazeTracking", "gaze_data")
@@ -81,7 +81,7 @@ for root, dirs, files in os.walk(base_dir):
             video.release()
 
             # Convert the list for this video to DataFrame
-            df = pd.DataFrame(video_data, columns=['video_name', 'left_pupil', 'right_pupil', 'gaze_direction', 'label'])
+            df = pd.DataFrame(video_data, columns=['video_name', 'left_pupil', 'right_pupil', 'gaze_direction'])
             
             # Generate unique CSV filename using the label and the video file name (without extension)
             video_basename = os.path.splitext(file)[0]  # Remove the file extension
