@@ -23,11 +23,12 @@ if not os.path.exists(save_dir):
 
 # Custom labels based on directory paths
 custom_labels = {
-    "Stroke/Finger-test/Eye-deviation/Start left": "Stroke_LeftDeviation",
-    "Stroke/Finger-test/Eye-deviation/Start mid": "Stroke_MidDeviation",
-    "Stroke/Finger-test/Eye-deviation/Start right": "Stroke_RightDeviation",
-    "Frisk data/Med penna/Finger-test": "Not_stroke",
-    "Frisk data/Utan penna/Fingertest": "Not_stroke"
+    "2/Finger-test/Eye-deviation/Start left": "2_left",
+    "2/Finger-test/Eye-deviation/Start right": "2_right",
+    "1/Finger-test/Eye-deviation/Start left": "1_left",
+    "1/Finger-test/Eye-deviation/Start right": "1_right",
+    "0/Med penna/Finger-test": "0",
+    "0/Utan penna/Finger-test": "0"
 }
 
 # Placeholder for extracted data

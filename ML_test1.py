@@ -7,14 +7,14 @@ import os
 import numpy as np
 
 # Load and combine CSV files
-path = r'GazeTracking/gaze_data'  # Use your path
+path = r'GazeTracking/gaze_data'  # Adjust this path as needed
 all_files = glob.glob(path + "/*.csv")
 
 li = []
 
 for filename in all_files:
-    # Extract label from filename
-    label = os.path.basename(filename).split('_')[0]  # This assumes the format "Label_Filename.csv"
+    # Extract label from filename, ensuring it's treated as an integer for classification
+    label = int(os.path.basename(filename).split('_')[0])  # Convert label to integer
     df = pd.read_csv(filename, index_col=None, header=0)
     df['label'] = label  # Add the extracted label to the DataFrame
     
@@ -47,19 +47,17 @@ y_pred = clf.predict(X_test)
 
 # Evaluate the model
 accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred, average='binary', pos_label='Stroke')
-recall = recall_score(y_test, y_pred, average='binary', pos_label='Stroke')
-f1 = f1_score(y_test, y_pred, average='binary', pos_label='Stroke')
 
-# Calculate specificity safely
-tn, fp, fn, tp = confusion_matrix(y_test, y_pred, labels=['Not_stroke', 'Stroke']).ravel()
-if (tn + fp) > 0:
-    specificity = tn / (tn + fp)
-else:
-    specificity = np.nan  # Or consider another approach to handle this case
+# For multiclass classification, 'micro', 'macro', 'weighted', or 'samples' averaging is required for precision, recall, and F1 score
+precision = precision_score(y_test, y_pred, average='macro')
+recall = recall_score(y_test, y_pred, average='macro')
+f1 = f1_score(y_test, y_pred, average='macro')
+
+# Specificity is not directly applicable in multiclass settings in the same way as binary classifications.
+# Consider calculating class-wise specificity or adapting the concept for multiclass scenarios.
 
 print(f"Accuracy: {accuracy}")
 print(f"Precision: {precision}")
 print(f"Sensitivity (Recall): {recall}")
-print(f"Specificity: {specificity if not np.isnan(specificity) else 'Undefined'}")
+# Specificity calculation is omitted due to multiclass nature.
 print(f"F1 Score: {f1}")
