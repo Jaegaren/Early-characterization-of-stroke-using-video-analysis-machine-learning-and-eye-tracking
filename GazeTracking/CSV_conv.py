@@ -9,8 +9,10 @@ gaze = GazeTracking()
 # Define your directory structure
 # FOR EDDIE'S COMPUTER:
 #base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"
-# FOR ROBIN'S COMPUTER:
-base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"
+# FOR ROBIN'S COMPUTER (OUR VIDEOS):
+#base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"
+# FOR ROBIN'S COMPUTER (SYNTHETIC VIDEOS):
+base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\SyntetiskData"
 # FOR ROBIN'S LAPTOP:
 #base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\Videor"
 
