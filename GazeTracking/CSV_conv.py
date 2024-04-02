@@ -23,12 +23,29 @@ if not os.path.exists(save_dir):
 
 # Custom labels based on directory paths
 custom_labels = {
-    "2/Finger-test/Eye-deviation/Start left": "2_left",
-    "2/Finger-test/Eye-deviation/Start right": "2_right",
-    "1/Finger-test/Eye-deviation/Start left": "1_left",
-    "1/Finger-test/Eye-deviation/Start right": "1_right",
-    "0/Med penna/Finger-test": "0",
-    "0/Utan penna/Finger-test": "0"
+    #Vanlig data
+   # "2/Finger-test/Eye-deviation/Start left": "2_left",
+   # "2/Finger-test/Eye-deviation/Start right": "2_right",
+   # "1/Finger-test/Eye-deviation/Start left": "1_left",
+   # "1/Finger-test/Eye-deviation/Start right": "1_right",
+   # "0/Med penna/Finger-test": "0",
+   # "0/Utan penna/Finger-test": "0"
+    #Syntetisk data
+    "0": "0",
+    "1/Kranialnerv Fel/CN3/Fel Höger": "1_right",
+    "1/Kranialnerv Fel/CN3/Fel Vänster": "1_left",
+    "1/Kranialnerv Fel/CN4/Fel Höger": "1_right",
+    "1/Kranialnerv Fel/CN4/Fel Vänster": "1_left",
+    "1/Kranialnerv Fel/CN6/Fel Höger": "1_right",
+    "1/Kranialnerv Fel/CN6/Fel Vänster": "1_left",
+    "1/Nystagmus/Nystagmus Höger": "1_right",
+    "1/Nystagmus/Nystagmus Vänster": "1_left",
+    "1/start Höger Begränsat": "1_right",
+    "1/start Höger Kan Röra": "1_right",
+    "1/start Vänster Begränsat": "1_left",
+    "1/start Vänster Kan Röra": "1_left",
+    "2/Start Höger": "2_right",
+    "2/Start Vänster": "2_left"
 }
 
 # Placeholder for extracted data
