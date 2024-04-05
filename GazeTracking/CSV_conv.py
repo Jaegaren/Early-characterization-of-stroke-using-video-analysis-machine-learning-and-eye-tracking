@@ -7,17 +7,24 @@ import pandas as pd
 gaze = GazeTracking()
 
 # Define your directory structure
+
 # FOR EDDIE'S COMPUTER:
 #base_dir = r"C:\Users\est02\OneDrive - Chalmers\Kandidat_vids\Videor"
-# FOR ROBIN'S COMPUTER (OUR VIDEOS):
-#base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\Videor"
-# FOR ROBIN'S COMPUTER (SYNTHETIC VIDEOS):
-base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\SyntetiskData"
-# FOR ROBIN'S LAPTOP:
-#base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\Videor"
+
+# FOR ROBIN'S COMPUTER (REAL DATA):
+base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\NEWVideos"
+
+# FOR ROBIN'S COMPUTER (SYNTHETIC DATA):
+#base_dir = r"C:\Users\Robin Khatiri\OneDrive\Desktop\shid\SyntetiskData"
+
+# FOR ROBIN'S LAPTOP (REAL DATA):
+#base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\NEWVideos"
+
+# FOR ROBIN'S LAPTOP (SYNTHETIC DATA):
+#base_dir = r"C:\Users\robin\OneDrive\Desktop\shid\SyntetiskData"
 
 # Path to save CSV files
-save_dir = os.path.join("GazeTracking", "gaze_data")
+save_dir = os.path.join("GazeTracking", "gaze_data", "real_data")
 
 # Create the gaze_data folder if it doesn't exist
 if not os.path.exists(save_dir):
@@ -25,29 +32,29 @@ if not os.path.exists(save_dir):
 
 # Custom labels based on directory paths
 custom_labels = {
-    #Vanlig data
-   # "2/Finger-test/Eye-deviation/Start left": "2_left",
-   # "2/Finger-test/Eye-deviation/Start right": "2_right",
-   # "1/Finger-test/Eye-deviation/Start left": "1_left",
-   # "1/Finger-test/Eye-deviation/Start right": "1_right",
-   # "0/Med penna/Finger-test": "0",
-   # "0/Utan penna/Finger-test": "0"
-    #Syntetisk data
-    "0": "0",
-    "1/Kranialnerv Fel/CN3/Fel Höger": "1_right",
-    "1/Kranialnerv Fel/CN3/Fel Vänster": "1_left",
-    "1/Kranialnerv Fel/CN4/Fel Höger": "1_right",
-    "1/Kranialnerv Fel/CN4/Fel Vänster": "1_left",
-    "1/Kranialnerv Fel/CN6/Fel Höger": "1_right",
-    "1/Kranialnerv Fel/CN6/Fel Vänster": "1_left",
-    "1/Nystagmus/Nystagmus Höger": "1_right",
-    "1/Nystagmus/Nystagmus Vänster": "1_left",
-    "1/start Höger Begränsat": "1_right",
-    "1/start Höger Kan Röra": "1_right",
-    "1/start Vänster Begränsat": "1_left",
-    "1/start Vänster Kan Röra": "1_left",
-    "2/Start Höger": "2_right",
-    "2/Start Vänster": "2_left"
+    # Vanlig data
+    "2/Finger-test/Eye-deviation/Start left": "2_left",
+    "2/Finger-test/Eye-deviation/Start right": "2_right",
+    "1/Finger-test/Eye-deviation/Start left": "1_left",
+    "1/Finger-test/Eye-deviation/Start right": "1_right",
+    "0/Med penna/Finger-test": "0",
+    "0/Utan penna/Finger-test": "0"
+    # Syntetisk data
+    #"0": "0",
+    #"1/Kranialnerv Fel/CN3/Fel Höger": "1_right",
+    #"1/Kranialnerv Fel/CN3/Fel Vänster": "1_left",
+    #"1/Kranialnerv Fel/CN4/Fel Höger": "1_right",
+    #"1/Kranialnerv Fel/CN4/Fel Vänster": "1_left",
+    #"1/Kranialnerv Fel/CN6/Fel Höger": "1_right",
+    #"1/Kranialnerv Fel/CN6/Fel Vänster": "1_left",
+    #"1/Nystagmus/Nystagmus Höger": "1_right",
+    #"1/Nystagmus/Nystagmus Vänster": "1_left",
+    #"1/start Höger Begränsat": "1_right",
+    #"1/start Höger Kan Röra": "1_right",
+    #"1/start Vänster Begränsat": "1_left",
+    #"1/start Vänster Kan Röra": "1_left",
+    #"2/Start Höger": "2_right",
+    #"2/Start Vänster": "2_left"
 }
 
 # Placeholder for extracted data
