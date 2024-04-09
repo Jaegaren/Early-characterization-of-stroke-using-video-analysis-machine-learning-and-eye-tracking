@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Gaze Tracking
 
 ![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)
@@ -170,3 +171,6 @@ If the detection of your pupils is not completely optimal, you can send me a vid
 ## Licensing
 
 This project is released by Antoine Lamé under the terms of the MIT Open Source License. View LICENSE for more information.
+=======
+# Early-characterization-of-stroke-using-video-analysis-machine-learning-and-eye-tracking
+>>>>>>> 26331f6388f466082ff22badb0a5cc73405c1f2c
