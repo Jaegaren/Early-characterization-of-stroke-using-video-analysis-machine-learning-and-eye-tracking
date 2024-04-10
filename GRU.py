@@ -11,9 +11,11 @@ from keras.layers import Input
 from keras.layers import Masking
 from keras.metrics import Precision, Recall, AUC, F1Score
 from keras.callbacks import EarlyStopping
+from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 
 # Loading and preprocessing the data
@@ -47,7 +49,7 @@ def load_and_preprocess_data(folder_path):
 
 
 '''
-#Padding using the last know coordinates
+# Padding using the last know coordinates
 def pad_sequence_add(data):
     # Determine max sequence length
     max_len = max(len(seq) for seq in real_data)
@@ -132,13 +134,14 @@ synthetic_data_padded = pad_sequence_add(synthetic_data)
 all_data = np.concatenate((real_data_padded, synthetic_data_padded), axis=0)
 all_labels = np.concatenate((real_labels, synthetic_labels), axis=0)
 
+
 # Convert labels to categorical
-all_labels = to_categorical(all_labels)
+#all_labels = to_categorical(all_labels)
 
 # Creating early stopping variable
 early_stopping = EarlyStopping(
     monitor='val_loss',         # Metric to monitor
-    patience=3,                 # Number of epochs with no improvement after which training will be stopped
+    patience=10,                 # Number of epochs with no improvement after which training will be stopped
     verbose=5,                  # To log when training is stopped
     restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity.
 )
@@ -146,16 +149,22 @@ early_stopping = EarlyStopping(
 # Define the number of splits
 num_folds = 5
 
-# Define the K-fold Cross Validator
-kfold = KFold(n_splits=num_folds, shuffle=True)
+# Define K-fold 
+kfold = KFold(n_splits = num_folds, shuffle=True, random_state = 42)
+
+# Define stratified k-fold 
+skf = StratifiedKFold(n_splits = num_folds, shuffle=True, random_state = 42)
 
 # Placeholder for fold performance
 scores_per_fold = []
 
 fold_no = 1
-for train, test in kfold.split(all_data, all_labels):
+for train, test in skf.split(all_data, all_labels):
+    y_train = to_categorical(all_labels[train])
+    y_test = to_categorical(all_labels[test])
+
     model = Sequential([
-        Input(shape = (546, 4)),
+        Input(shape = (max_length(real_data, synthetic_data), 4)),
         Masking(mask_value = (0,0,0,0)), 
         GRU(128, return_sequences=True),
         GRU(64, return_sequences=True),
@@ -163,19 +172,19 @@ for train, test in kfold.split(all_data, all_labels):
         Dense(3, activation='softmax')
     ])
     
-    model.compile(optimizer = 'adam',
+    model.compile(optimizer = Adam(learning_rate=0.001),
                   loss = 'categorical_crossentropy',
                   metrics = ['accuracy', 'Precision', 'Recall'])
 
     print(f'Training for fold {fold_no}...')
     
-    historall_labels = model.fit(all_data[train], all_labels[train],
-                        validation_data=(all_data[test], all_labels[test]),
+    historall_labels = model.fit(all_data[train], y_train,
+                        validation_data=(all_data[test], y_test),
                         epochs = 100,
                         batch_size = 32,
                         callbacks = early_stopping)
     
-    scores = model.evaluate(all_data[test], all_labels[test], verbose=0)
+    scores = model.evaluate(all_data[test], y_test, verbose=0)
     print(f'Score for fold {fold_no}: {model.metrics_names} of {scores}')
     scores_per_fold.append(scores)
     
