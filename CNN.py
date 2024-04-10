@@ -69,7 +69,7 @@ from keras.preprocessing.sequence import pad_sequences
 sequences_padded = pad_sequences(sequences, padding='post', dtype='float32')
 labels_encoded = to_categorical(labels)
 
-kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+kfold = KFold(n_splits=3, shuffle=True, random_state=42)
 
 accuracy_scores = []
 precision_scores = []
