@@ -70,8 +70,8 @@ synthetic_sequences, synthetic_labels = load_and_preprocess_data(path_to_synthet
 print(f"Number of real sequences: {len(real_sequences)}")
 print(f"Number of synthetic sequences: {len(synthetic_sequences)}")
 # Combine real and synthetic data
-all_sequences = real_sequences + synthetic_sequences
-all_labels = real_labels + synthetic_labels
+all_sequences =  synthetic_sequences + real_sequences 
+all_labels =  synthetic_labels + real_labels 
 print(f"Total number of sequences: {len(all_sequences)}")
 
 X_padded = pad_sequences(all_sequences, padding='post', dtype='float32')
@@ -81,7 +81,7 @@ y_categorical = to_categorical(all_labels)
 
 data = X_padded
 labels = y_categorical
-num_folds = 5
+num_folds = 3
 kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
 
 accuracy_per_fold = []
@@ -111,9 +111,9 @@ for train, test in kfold.split(data, labels):
     ])
 
 # Compile the model
-    optimizer = Adam(learning_rate=0.1)
+    optimizer = Adam(learning_rate=0.01)
 
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     print('------------------------------------------------------------------------')
     print(f'Training for fold {fold_no} ...')
 
@@ -129,7 +129,7 @@ for train, test in kfold.split(data, labels):
                             batch_size=32,
                             epochs=100,
                             verbose=1,
-                            validation_split=0.2)  # You might adjust validation_split if needed
+                            validation_split=0.3)  # You might adjust validation_split if needed
 
    
     num_validation_sequences = int(len(X_train) * 0.2)
