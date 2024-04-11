@@ -1,6 +1,10 @@
 import glob
 import pandas as pd
 import os
+
+# Suppress informational messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import tensorflow
 from tensorflow import keras
 from sklearn.preprocessing import LabelEncoder
@@ -30,6 +34,7 @@ def load_and_preprocess_data(paths):
     labels = []
     
     all_gaze_directions = set()
+
     for file_path in glob.glob(paths):
         df = pd.read_csv(file_path)
         # Correct "blinki" to "blinking" before collecting unique directions
@@ -67,12 +72,14 @@ def load_and_preprocess_data(paths):
 # Load and preprocess data
 real_sequences, real_labels = load_and_preprocess_data(path_to_real_data)
 synthetic_sequences, synthetic_labels = load_and_preprocess_data(path_to_synthetic_data)
+
 print(f"Number of real sequences: {len(real_sequences)}")
-print(f"Number of synthetic sequences: {len(synthetic_sequences)}")
+print(f"Number of synthetic sequences: {len(synthetic_sequences)}\n")
+
 # Combine real and synthetic data
 all_sequences =  synthetic_sequences + real_sequences 
 all_labels =  synthetic_labels + real_labels 
-print(f"Total number of sequences: {len(all_sequences)}")
+print(f"Total number of sequences: {len(all_sequences)}\n")
 
 X_padded = pad_sequences(all_sequences, padding='post', dtype='float32')
 
@@ -81,6 +88,68 @@ y_categorical = to_categorical(all_labels)
 
 data = X_padded
 labels = y_categorical
+
+# Split into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_padded, y_categorical, test_size=0.2)
+
+print(f"Number of training sequences: {len(X_train)}")
+print(f"Number of testing sequences: {len(X_test)}\n")
+
+# Here, add the final model training and saving code
+# Define and compile the final model (matching the architecture used in the k-fold loop)
+model = Sequential([
+    Input(shape=(data.shape[1], data.shape[2])),
+    Masking(mask_value=0.),
+    Bidirectional(LSTM(64, return_sequences=True, kernel_regularizer=l2(0.001))),
+    Dropout(0.5),
+    Bidirectional(LSTM(32, return_sequences=True, kernel_regularizer=l2(0.001))),
+    Dropout(0.5),
+    Bidirectional(LSTM(32, kernel_regularizer=l2(0.001))),
+    Dense(labels.shape[1], activation='softmax')
+])
+
+optimizer = Adam(learning_rate=0.01)
+model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+early_stopping = EarlyStopping(
+    monitor='val_loss',  # Metric to monitor
+    patience=10,  # How many epochs to wait after last time val_loss improved
+    verbose=1,
+    restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
+)
+
+# Train the final model on all data
+model.fit(X_train, y_train, validation_data = (X_test, y_test), batch_size=32, epochs=100, verbose=1, callbacks=[early_stopping])
+
+# After training, predict classes on the test set
+predictions = model.predict(X_test)  # Use X_test here
+y_pred = np.argmax(predictions, axis=1)
+y_true = np.argmax(y_test, axis=1)  # Use y_test here
+print(y_pred)
+print(y_true)
+
+# Now you can call classification_report without causing a mismatch error
+accuracy = accuracy_score(y_true, y_pred)
+#accuracy = model.evaluate(data, to_categorical(labels))
+precision = precision_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
+recall = recall_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
+f1 = f1_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
+
+# Print the metrics
+print("Classification Report:")
+print(f"Accuracy: {round(accuracy * 100, 2)}%")
+print(f"Precision: {round(precision * 100, 2)}%")
+print(f"Recall (Sensitivity): {round(recall * 100, 2)}%")
+print(f"F1 Score: {round(f1 * 100, 2)}%")
+
+# Save the final model
+model.save('final_lstm_model.keras')
+print('Final model saved as final_lstm_model.keras')
+
+
+# FOLD IMPLEMENTATION FOR VALIDATION BELOW: --------------------------------------------------------------------------------------------
+
+""" 
 num_folds = 3
 kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
 
@@ -91,10 +160,7 @@ f1_per_fold = []
 
 loss_per_fold = []
 fold_no = 1
-# Split into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X_padded, y_categorical, test_size=0.2, random_state=42)
-print(f"Number of training sequences: {len(X_train)}")
-print(f"Number of testing sequences: {len(X_test)}")
+
 # Define the LSTM model
 for train, test in kfold.split(data, labels):
 
@@ -110,7 +176,7 @@ for train, test in kfold.split(data, labels):
         Dense(labels.shape[1], activation='softmax')
     ])
 
-# Compile the model
+    # Compile the model
     optimizer = Adam(learning_rate=0.01)
 
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -124,7 +190,8 @@ for train, test in kfold.split(data, labels):
         verbose=1,
         restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
     )
-# Train the model
+
+    # Train the model
     history = model.fit(data[train], labels[train],
                             batch_size=32,
                             epochs=100,
@@ -133,19 +200,21 @@ for train, test in kfold.split(data, labels):
 
    
     num_validation_sequences = int(len(X_train) * 0.2)
+
     print(f"Number of validation sequences: {num_validation_sequences}")
+
     # After training, predict classes on the test set
     predictions = model.predict(data[test])
     y_pred = np.argmax(predictions, axis=1)
     y_true = np.argmax(labels[test], axis=1)
 
-# Define gaze_directions for classification report; adjust according to your actual class names
-# Assuming y_train is already converted to categorical with to_categorical
+    # Define gaze_directions for classification report; adjust according to your actual class names
+    # Assuming y_train is already converted to categorical with to_categorical
     num_classes = y_train.shape[1]  # This will give you the number of classes
 
-# Now, dynamically set your gaze_directions based on the number of classes
-# Here, I'm assuming the classes are sequentially labeled from 0, 1, 2, ...
-# Adjust the names based on your actual class names and order
+    # Now, dynamically set your gaze_directions based on the number of classes
+    # Here, I'm assuming the classes are sequentially labeled from 0, 1, 2, ...
+    # Adjust the names based on your actual class names and order
     class_names = ['left', 'right', 'center', 'blinking']  # Example class names
     gaze_directions = class_names[:num_classes]  # Adjust this to match your actual classes
 
@@ -170,13 +239,6 @@ for train, test in kfold.split(data, labels):
 # Make sure this list matches the classes predicted by the model
 # For instance, if your model predicts 3 classes, ensure gaze_directions has 3 names
 
-# Now you can call classification_report without causing a mismatch error
-accuracy = accuracy_score(y_true, y_pred)
-precision = precision_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
-recall = recall_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
-f1 = f1_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
-
-
 # == Provide average scores ==
 print('------------------------------------------------------------------------')
 print('Score per fold')
@@ -191,9 +253,7 @@ print(f'Recall: {np.mean(recall_per_fold)} +/- {np.std(recall_per_fold)}')
 print(f'F1 Score: {np.mean(f1_per_fold)} +/- {np.std(f1_per_fold)}')
 print(f'> Loss: {np.mean(loss_per_fold)}')
 print('------------------------------------------------------------------------')
+"""
 
-# Print the metrics
-print(f"Accuracy: {accuracy:.4f}")
-print(f"Precision: {precision:.4f}")
-print(f"Recall (Sensitivity): {recall:.4f}")
-print(f"F1 Score: {f1:.4f}")
+# END OF FOLD IMPLEMENTATION FOR VALIDATION
+ 
