@@ -1,259 +1,204 @@
-import glob
 import pandas as pd
+import numpy as np
 import os
+import tensorflow
+from tensorflow import keras
+from keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Masking, Bidirectional, Dropout, Input
+from keras.callbacks import Callback
+from keras.optimizers import Adam
+from keras.regularizers import L1L2
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 # Suppress informational messages
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-import tensorflow
-from tensorflow import keras
-from sklearn.preprocessing import LabelEncoder
-from keras.preprocessing.sequence import pad_sequences
-from keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Masking
-from keras.layers import Bidirectional, Dropout
-from keras.layers import Input
-from keras.optimizers import Adam, SGD, RMSprop
-from keras.callbacks import EarlyStopping
-from sklearn.metrics import classification_report
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import train_test_split, KFold
-from keras.regularizers import l2
-import numpy as np
-
-
 # Directory paths to your data
-path_to_real_data = r'GazeTracking/gaze_data/real_data/*.csv'
-path_to_synthetic_data = r'GazeTracking/gaze_data/synthetic_data/*.csv'
+real_data_path = "GazeTracking/gaze_data/real_data"
+synthetic_data_path = "GazeTracking/gaze_data/synthetic_data"
 
-# Function to load and preprocess data from CSV files
-def load_and_preprocess_data(paths):
-    sequences = []
+class CustomEarlyStopping(Callback):
+    def __init__(self, patience=20, verbose=1):
+        super(CustomEarlyStopping, self).__init__()
+        self.patience = patience
+        self.verbose = verbose
+        self.best_weights = None
+        self.best_metric = np.inf
+        self.wait = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        current_val_loss = logs.get('val_loss')
+        current_accuracy = logs.get('val_accuracy')
+
+        # Normalize the accuracy: Assuming accuracy ranges from 0 to 1
+        normalized_accuracy = 1 - current_accuracy  # Convert to a loss-like metric (lower is better)
+
+        # Calculate the average of normalized accuracy and validation loss
+        combined_metric = (current_val_loss + normalized_accuracy) / 2
+
+        # Check if the combined metric improved
+        if np.less(combined_metric, self.best_metric):
+            self.best_metric = combined_metric
+            self.best_weights = self.model.get_weights()
+            self.wait = 0
+            print(' NEW BEST WEIGHTS ')
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                self.model.stop_training = True
+                self.model.set_weights(self.best_weights)
+                if self.verbose > 0:
+                    print(f'Epoch {epoch+1}: early stopping')
+
+# Loading and preprocessing the data by calculating difference in coordinates for each frame
+def load_and_preprocess_data(folder_path):
+    differences = []  # This will store the coordinate differences for each file
     labels = []
-    
-    all_gaze_directions = set()
 
-    for file_path in glob.glob(paths):
-        df = pd.read_csv(file_path)
-        # Correct "blinki" to "blinking" before collecting unique directions
-        df['gaze_direction'] = df['gaze_direction'].replace('blinki', 'blinking')
-        all_gaze_directions.update(df['gaze_direction'].dropna().unique())
-    
-    # Fit the LabelEncoder with all unique gaze directions
-    gaze_encoder = LabelEncoder()
-    gaze_encoder.fit(list(all_gaze_directions))
-    
-    for file_path in glob.glob(paths):
-        df = pd.read_csv(file_path)
-        # Drop rows with any NaN values
-        df.dropna(subset=['left_pupil', 'right_pupil', 'gaze_direction'], inplace=True)
-        # Correct "blinki" to "blinking"
-        df['gaze_direction'] = df['gaze_direction'].replace('blinki', 'blinking')
-        
-        # Correctly extracting the classification label from the filename
-        label = int(os.path.basename(file_path).split('_')[0])
-        
-        # Encode gaze direction
-        df['gaze_direction'] = gaze_encoder.transform(df['gaze_direction'])
-        
-        # Extract and convert coordinates
-        # Make sure to correctly parse the tuples
-        df[['left_pupil_x', 'left_pupil_y']] = df['left_pupil'].str.extract(r'\((.*), (.*)\)').astype(float)
-        df[['right_pupil_x', 'right_pupil_y']] = df['right_pupil'].str.extract(r'\((.*), (.*)\)').astype(float)
-        sequence = df[['left_pupil_x', 'left_pupil_y', 'right_pupil_x', 'right_pupil_y', 'gaze_direction']].values
-        
-        sequences.append(sequence)
-        labels.append(label)
-    
-    return sequences, labels
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith('.csv'):
+            # Extract label from the first character of the file name
+            label = int(file_name[0])
+
+            file_path = os.path.join(folder_path, file_name)
+            df = pd.read_csv(file_path, usecols=['left_pupil', 'right_pupil'])
+            
+            # Drop rows with missing values
+            df = df.dropna()
+
+            # Calculate coordinate differences
+            file_differences = []
+            previous_row = None
+            for _, row in df.iterrows():
+                current_row = {
+                    'left_pupil': eval(row['left_pupil']),
+                    'right_pupil': eval(row['right_pupil'])
+                }
+
+                if previous_row is not None:
+                    # Calculate differences for left pupil
+                    left_diff = (current_row['left_pupil'][0] - previous_row['left_pupil'][0],
+                                 current_row['left_pupil'][1] - previous_row['left_pupil'][1])
+
+                    # Calculate differences for right pupil
+                    right_diff = (current_row['right_pupil'][0] - previous_row['right_pupil'][0],
+                                  current_row['right_pupil'][1] - previous_row['right_pupil'][1])
+
+                    file_differences.append(left_diff + right_diff)
+
+                # Update the previous row
+                previous_row = current_row
+
+            differences.append(file_differences)
+            labels.append(label)
+
+    return differences, labels
+
+# Determining maximum sequence length
+def max_length(real_data, synthetic_data):
+    max_len_real = max(len(seq) for seq in real_data)
+    max_len_synth = max(len(seq) for seq in synthetic_data)
+    return max(max_len_real, max_len_synth)
+
+# Padding using zero-coordinates
+def pad_sequence_add(data):
+    #max_len = max(max_length(X_train, X_test), max_length(X_train2, X_test2))
+    max_len = max_length(real_data, synthetic_data)
+    padded_data = []
+    for seq in data:
+        seq_len = len(seq)
+        if seq_len < max_len:
+            # Calculate the number of timesteps needed to add to pad the sequence
+            padding = [(50,50,50,50)] * (max_len - seq_len)
+            # Extend the sequence with the padding
+            seq.extend(padding)
+        # Append the padded sequence to the list
+        padded_data.append(seq)
+    # Convert the list of sequences to a NumPy array and return
+    return np.array(padded_data, dtype = 'float32')
 
 # Load and preprocess data
-real_sequences, real_labels = load_and_preprocess_data(path_to_real_data)
-synthetic_sequences, synthetic_labels = load_and_preprocess_data(path_to_synthetic_data)
+real_data, real_labels = load_and_preprocess_data(real_data_path)
+synthetic_data, synthetic_labels = load_and_preprocess_data(synthetic_data_path)
 
-print(f"Number of real sequences: {len(real_sequences)}")
-print(f"Number of synthetic sequences: {len(synthetic_sequences)}\n")
+# Pad data
+real_data_padded = pad_sequence_add(real_data)
+synthetic_data_padded = pad_sequence_add(synthetic_data)
 
-# Combine real and synthetic data
-all_sequences =  synthetic_sequences + real_sequences 
-all_labels =  synthetic_labels + real_labels 
-print(f"Total number of sequences: {len(all_sequences)}\n")
+# Concatenate data
+all_data = np.concatenate((real_data_padded, synthetic_data_padded), axis=0)
+all_labels = np.concatenate((real_labels, synthetic_labels), axis=0)
 
-X_padded = pad_sequences(all_sequences, padding='post', dtype='float32')
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.3, stratify = all_labels)
 
-# Convert labels to categorical
-y_categorical = to_categorical(all_labels)
+# Define early stopååing and L1L2-regulizer
+early_stopping = CustomEarlyStopping(patience=10, verbose=1,)
+reg = L1L2(l1=0.005, l2=0.005)
+        
+# Transform labels to categorical  
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
 
-data = X_padded
-labels = y_categorical
-
-# Split into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X_padded, y_categorical, test_size=0.2)
-
-print(f"Number of training sequences: {len(X_train)}")
-print(f"Number of testing sequences: {len(X_test)}\n")
-
-# Here, add the final model training and saving code
-# Define and compile the final model (matching the architecture used in the k-fold loop)
+# Define the model
 model = Sequential([
-    Input(shape=(data.shape[1], data.shape[2])),
-    Masking(mask_value=0.),
-    Bidirectional(LSTM(64, return_sequences=True, kernel_regularizer=l2(0.001))),
+    Input(shape = (max_length(X_test, X_train), 4)),
+    Masking(mask_value = (50)), 
+    Bidirectional(LSTM(128, return_sequences=True, kernel_regularizer=reg)),
     Dropout(0.5),
-    Bidirectional(LSTM(32, return_sequences=True, kernel_regularizer=l2(0.001))),
+    Bidirectional(LSTM(64, return_sequences=True, kernel_regularizer=reg)),
     Dropout(0.5),
-    Bidirectional(LSTM(32, kernel_regularizer=l2(0.001))),
-    Dense(labels.shape[1], activation='softmax')
+    Bidirectional(LSTM(64)),
+    Dense(3, activation='softmax')
+    
 ])
 
-optimizer = Adam(learning_rate=0.01)
-model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer = Adam(learning_rate = 0.0005),
+            loss = 'categorical_crossentropy',
+            metrics = ['accuracy', 'Precision', 'Recall'])
 
-early_stopping = EarlyStopping(
-    monitor='val_loss',  # Metric to monitor
-    patience=10,  # How many epochs to wait after last time val_loss improved
-    verbose=1,
-    restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
-)
 
-# Train the final model on all data
-model.fit(X_train, y_train, validation_data = (X_test, y_test), batch_size=32, epochs=100, verbose=1, callbacks=[early_stopping])
+historall_labels = model.fit(X_train, y_train,
+                    validation_data=(X_test, y_test),
+                    epochs = 100,
+                    batch_size = 32,
+                    callbacks = early_stopping)
 
-# After training, predict classes on the test set
+training_loss = historall_labels.history['loss']
+validation_loss = historall_labels.history['val_loss']
+training_accuracy = historall_labels.history['accuracy']
+validation_accuracy = historall_labels.history['val_accuracy']
+# Create count of the number of epochs
+epoch_count = range(1, len(training_loss) + 1)
+
+scores = model.evaluate(X_test, y_test, verbose=0)
+print(f'Score: {model.metrics_names} of {scores}')
+
 predictions = model.predict(X_test)  # Use X_test here
 y_pred = np.argmax(predictions, axis=1)
 y_true = np.argmax(y_test, axis=1)  # Use y_test here
-print(y_pred)
-print(y_true)
+print(f'Prediction:  ', y_pred)
+print(f'True labels: ', y_true)
 
-# Now you can call classification_report without causing a mismatch error
-accuracy = accuracy_score(y_true, y_pred)
-#accuracy = model.evaluate(data, to_categorical(labels))
-precision = precision_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
-recall = recall_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
-f1 = f1_score(y_true, y_pred, average='weighted')  # 'weighted' accounts for label imbalance
+print("Average validation scores across all folds:")
+print(f'Loss: {round(scores[0], 2)}')
+print(f'Precision: {round(scores[1] * 100, 2)}%')
+print(f'Recall: {round(scores[2] * 100, 2)}%')
+print(f'Accuracy: {round(scores[3] * 100, 2)}%')
 
-# Print the metrics
-print("Classification Report:")
-print(f"Accuracy: {round(accuracy * 100, 2)}%")
-print(f"Precision: {round(precision * 100, 2)}%")
-print(f"Recall (Sensitivity): {round(recall * 100, 2)}%")
-print(f"F1 Score: {round(f1 * 100, 2)}%")
+# Visualizing the loss as the network learns
+plt.figure(figsize=(10, 6))
+plt.plot(epoch_count, training_loss, 'r--', label='Training Loss')
+plt.plot(epoch_count, validation_loss, 'b-', label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss')
+plt.legend()
+plt.grid(True)
+plt.show()
 
 # Save the final model
 model.save('final_lstm_model.keras')
-print('Final model saved as final_lstm_model.keras')
-
-
-# FOLD IMPLEMENTATION FOR VALIDATION BELOW: --------------------------------------------------------------------------------------------
-
-""" 
-num_folds = 3
-kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
-
-accuracy_per_fold = []
-precision_per_fold = []
-recall_per_fold = []
-f1_per_fold = []
-
-loss_per_fold = []
-fold_no = 1
-
-# Define the LSTM model
-for train, test in kfold.split(data, labels):
-
-    # Define the model architecture inside the loop
-    model = Sequential([
-        Input(shape=(data.shape[1], data.shape[2])),
-        Masking(mask_value=0.),
-        Bidirectional(LSTM(64, return_sequences=True, kernel_regularizer=l2(0.001))),
-        Dropout(0.5),
-        Bidirectional(LSTM(32, return_sequences=True, kernel_regularizer=l2(0.001))),
-        Dropout(0.5),
-        Bidirectional(LSTM(32, kernel_regularizer=l2(0.001))),
-        Dense(labels.shape[1], activation='softmax')
-    ])
-
-    # Compile the model
-    optimizer = Adam(learning_rate=0.01)
-
-    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-    print('------------------------------------------------------------------------')
-    print(f'Training for fold {fold_no} ...')
-
-
-    early_stopping = EarlyStopping(
-        monitor='val_loss',  # Metric to monitor
-        patience=10,  # How many epochs to wait after last time val_loss improved
-        verbose=1,
-        restore_best_weights=True  # Restore model weights from the epoch with the best value of the monitored quantity
-    )
-
-    # Train the model
-    history = model.fit(data[train], labels[train],
-                            batch_size=32,
-                            epochs=100,
-                            verbose=1,
-                            validation_split=0.3)  # You might adjust validation_split if needed
-
-   
-    num_validation_sequences = int(len(X_train) * 0.2)
-
-    print(f"Number of validation sequences: {num_validation_sequences}")
-
-    # After training, predict classes on the test set
-    predictions = model.predict(data[test])
-    y_pred = np.argmax(predictions, axis=1)
-    y_true = np.argmax(labels[test], axis=1)
-
-    # Define gaze_directions for classification report; adjust according to your actual class names
-    # Assuming y_train is already converted to categorical with to_categorical
-    num_classes = y_train.shape[1]  # This will give you the number of classes
-
-    # Now, dynamically set your gaze_directions based on the number of classes
-    # Here, I'm assuming the classes are sequentially labeled from 0, 1, 2, ...
-    # Adjust the names based on your actual class names and order
-    class_names = ['left', 'right', 'center', 'blinking']  # Example class names
-    gaze_directions = class_names[:num_classes]  # Adjust this to match your actual classes
-
-
-    # Generate generalization metrics
-    scores = model.evaluate(data[test], labels[test], verbose=0)
-    accuracy = accuracy_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, average='weighted')
-    recall = recall_score(y_true, y_pred, average='weighted')
-    f1 = f1_score(y_true, y_pred, average='weighted')
-    loss_per_fold.append(scores[0])
-    print(f'Score for fold {fold_no}: Accuracy of {accuracy*100}%, Precision of {precision*100}%, Recall of {recall*100}%, F1 Score of {f1*100}%')
-   
-    accuracy_per_fold.append(accuracy * 100)
-    precision_per_fold.append(precision * 100)
-    recall_per_fold.append(recall * 100)
-    f1_per_fold.append(f1 * 100)
-
-    fold_no += 1
-
-
-# Make sure this list matches the classes predicted by the model
-# For instance, if your model predicts 3 classes, ensure gaze_directions has 3 names
-
-# == Provide average scores ==
-print('------------------------------------------------------------------------')
-print('Score per fold')
-for i in range(0, len(accuracy_per_fold)):
-  print('------------------------------------------------------------------------')
-  print(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {accuracy_per_fold[i]} - Precision: {precision_per_fold[i]} - Recall: {recall_per_fold} - F1: {f1_per_fold}%')
-print('------------------------------------------------------------------------')
-print(f'Average scores for all folds:')
-print(f'Accuracy: {np.mean(accuracy_per_fold)} +/- {np.std(accuracy_per_fold)}')
-print(f'Precision: {np.mean(precision_per_fold)} +/- {np.std(precision_per_fold)}')
-print(f'Recall: {np.mean(recall_per_fold)} +/- {np.std(recall_per_fold)}')
-print(f'F1 Score: {np.mean(f1_per_fold)} +/- {np.std(f1_per_fold)}')
-print(f'> Loss: {np.mean(loss_per_fold)}')
-print('------------------------------------------------------------------------')
-"""
-
-# END OF FOLD IMPLEMENTATION FOR VALIDATION
- 
+print('Final model saved as final_lstm_model.keras') 
