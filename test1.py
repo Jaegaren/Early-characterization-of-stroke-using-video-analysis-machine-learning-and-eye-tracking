@@ -1,5 +1,5 @@
 import cv2
-from gaze_tracking import GazeTracking
+from GazeTracking.gaze_tracking import GazeTracking
 
 # Initialize the gaze tracking library
 gaze = GazeTracking()
