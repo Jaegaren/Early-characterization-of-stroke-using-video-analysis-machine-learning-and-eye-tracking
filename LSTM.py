@@ -200,5 +200,5 @@ plt.grid(True)
 plt.show()
 
 # Save the final model
-model.save('final_lstm_model.keras')
-print('Final model saved as final_lstm_model.keras') 
+#model.save('final_lstm_model.keras')
+#print('Final model saved as final_lstm_model.keras')
