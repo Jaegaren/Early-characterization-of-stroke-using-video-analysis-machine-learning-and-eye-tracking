@@ -11,13 +11,14 @@ import tensorflow
 from tensorflow import keras
 from keras.models import Sequential
 from keras.layers import Dense, Conv1D, Flatten, MaxPooling1D, Input, Dropout, BatchNormalization, GaussianNoise
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from keras.utils import to_categorical
 from sklearn.metrics import precision_score, recall_score, f1_score
 from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
+from keras.preprocessing.sequence import pad_sequences
 
 
 # Define paths to the data
@@ -26,38 +27,47 @@ path_synthetic = r'GazeTracking/gaze_data/synthetic_data/*.csv'
 
 def load_data_and_labels(path):
     files = glob.glob(path)
-    sequences = []
+    all_differences = []
     labels = []
+        
     for file in files:
         df = pd.read_csv(file)
         label = int(re.search(r'^(\d)_', file.split('\\')[-1]).group(1))
         
-        # Initialize new columns to ensure they exist
+        # Initialize columns for coordinates
         df['left_pupil_x'] = np.nan
         df['left_pupil_y'] = np.nan
         df['right_pupil_x'] = np.nan
         df['right_pupil_y'] = np.nan
 
-        # Extract coordinates
+        # Extract and convert coordinates
         for column in ['left_pupil', 'right_pupil']:
             coords = df[column].str.extract(r'\((\d+),\s*(\d+)\)').astype(float)
             df[f'{column}_x'] = coords[0]
             df[f'{column}_y'] = coords[1]
 
-        # Remove rows where extraction failed (any NaN in crucial columns)
         df = df.dropna(subset=['left_pupil_x', 'left_pupil_y', 'right_pupil_x', 'right_pupil_y'])
 
         if df.empty:
-            continue  # Skip this file if no valid rows remain
+            continue
 
-        encoder = LabelEncoder()
-        df['gaze_direction_encoded'] = encoder.fit_transform(df['gaze_direction'])
-        features = df[['left_pupil_x', 'left_pupil_y', 'right_pupil_x', 'right_pupil_y', 'gaze_direction_encoded']].values
+        # Calculate differences in coordinates frame by frame
+        differences = []
+        previous_row = df.iloc[0]
+        for index, row in df.iterrows():
+            if index == 0:
+                continue
+            left_diff_x = row['left_pupil_x'] - previous_row['left_pupil_x']
+            left_diff_y = row['left_pupil_y'] - previous_row['left_pupil_y']
+            right_diff_x = row['right_pupil_x'] - previous_row['right_pupil_x']
+            right_diff_y = row['right_pupil_y'] - previous_row['right_pupil_y']
+            differences.append([left_diff_x, left_diff_y, right_diff_x, right_diff_y])
+            previous_row = row
 
-        sequences.append(features)
+        all_differences.append(differences)
         labels.append(label)
 
-    return sequences, labels
+    return all_differences, labels
 
 sequences_real, labels_real = load_data_and_labels(path_real)
 sequences_synthetic, labels_synthetic = load_data_and_labels(path_synthetic)
@@ -65,60 +75,50 @@ sequences_synthetic, labels_synthetic = load_data_and_labels(path_synthetic)
 sequences = sequences_real + sequences_synthetic
 labels = labels_real + labels_synthetic
 
-from keras.preprocessing.sequence import pad_sequences
+# Pad sequences to ensure they are all the same length
 sequences_padded = pad_sequences(sequences, padding='post', dtype='float32')
 labels_encoded = to_categorical(labels)
 
-kfold = KFold(n_splits=3, shuffle=True, random_state=42)
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(sequences_padded, labels_encoded, test_size=0.2, random_state=42)
 
-accuracy_scores = []
-precision_scores = []
-recall_scores = []
-f1_scores = []
+# Define and compile the CNN model
+model = Sequential([
+    Input(shape=(X_train.shape[1], X_train.shape[2])),
+    GaussianNoise(0.01),
+    Conv1D(filters=64, kernel_size=3, activation='relu', padding='same', kernel_regularizer=l2(0.0001)),
+    BatchNormalization(),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.5),
+    Conv1D(filters=128, kernel_size=3, activation='relu', padding='same', kernel_regularizer=l2(0.0001)),
+    BatchNormalization(),
+    MaxPooling1D(pool_size=2),
+    Dropout(0.5),
+    Flatten(),
+    Dense(50, activation='relu', kernel_regularizer=l2(0.0001)),
+    BatchNormalization(),
+    Dropout(0.5),
+    Dense(3, activation='softmax')
+])
 
-for train, test in kfold.split(sequences_padded, labels_encoded):
-    scaler = StandardScaler()
-    X_train_reshaped = sequences_padded[train].reshape(-1, sequences_padded[train].shape[-1])
-    X_test_reshaped = sequences_padded[test].reshape(-1, sequences_padded[test].shape[-1])
-    scaler.fit(X_train_reshaped)
-    X_train_scaled = scaler.transform(X_train_reshaped).reshape(sequences_padded[train].shape)
-    X_test_scaled = scaler.transform(X_test_reshaped).reshape(sequences_padded[test].shape)
-    
-    model = Sequential([
-        Input(shape=(X_train_scaled.shape[1], X_train_scaled.shape[2])),
-        GaussianNoise(0.01),
-        Conv1D(filters=64, kernel_size=3, activation='relu', padding='same', kernel_regularizer=l2(0.0001)),
-        BatchNormalization(),
-        MaxPooling1D(pool_size=2),
-        Dropout(0.5),
-        Conv1D(filters=128, kernel_size=3, activation='relu', padding='same', kernel_regularizer=l2(0.0001)),
-        BatchNormalization(),
-        MaxPooling1D(pool_size=2),
-        Dropout(0.5),
-        Flatten(),
-        Dense(50, activation='relu', kernel_regularizer=l2(0.0001)),
-        BatchNormalization(),
-        Dropout(0.5),
-        Dense(3, activation='softmax')
-    ])
-    
-    optimizer = Adam(learning_rate=0.0001, clipvalue=0.5)
-    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-    
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    
-    model.fit(X_train_scaled, labels_encoded[train], epochs=100, validation_data=(X_test_scaled, labels_encoded[test]), callbacks=[early_stopping], batch_size=32)
+optimizer = Adam(learning_rate=0.0001, clipvalue=0.5)
+model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-    predictions = model.predict(X_test_scaled)
-    predictions_labels = np.argmax(predictions, axis=1)
-    true_labels = np.argmax(labels_encoded[test], axis=1)
+# Fit the model
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test), callbacks=[early_stopping], batch_size=32)
 
-    accuracy_scores.append(np.mean(predictions_labels == true_labels))
-    precision_scores.append(precision_score(true_labels, predictions_labels, average='macro', zero_division=0))
-    recall_scores.append(recall_score(true_labels, predictions_labels, average='macro', zero_division=0))
-    f1_scores.append(f1_score(true_labels, predictions_labels, average='macro', zero_division=0))
+# Evaluate the model
+predictions = model.predict(X_test)
+predictions_labels = np.argmax(predictions, axis=1)
+true_labels = np.argmax(y_test, axis=1)
 
-print(f"Average Accuracy: {round(np.mean(accuracy_scores) * 100, 2)}%")
-print(f"Average Precision: {round(np.mean(precision_scores) * 100, 2)}%")
-print(f"Average Sensitivity (Recall): {round(np.mean(recall_scores) * 100, 2)}%")
-print(f"Average F1 Score: {round(np.mean(f1_scores) * 100, 2)}%")
+accuracy = np.mean(predictions_labels == true_labels)
+precision = precision_score(true_labels, predictions_labels, average='macro', zero_division=0)
+recall = recall_score(true_labels, predictions_labels, average='macro', zero_division=0)
+f1 = f1_score(true_labels, predictions_labels, average='macro', zero_division=0)
+
+print(f"Accuracy: {round(accuracy * 100, 2)}%")
+print(f"Precision: {round(precision * 100, 2)}%")
+print(f"Sensitivity (Recall): {round(recall * 100, 2)}%")
+print(f"F1 Score: {round(f1 * 100, 2)}%")
