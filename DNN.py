@@ -63,7 +63,9 @@ def build_dnn_model(input_shape, num_classes):
     model = tf.keras.Sequential([
         tf.keras.layers.Input(shape=input_shape),
         tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(num_classes, activation='softmax')
     ])
     return model
@@ -72,6 +74,7 @@ def build_dnn_model(input_shape, num_classes):
 # Define input shape and number of classes
 input_shape = (X_train.shape[1],)
 num_classes = len(np.unique(y))
+print(num_classes)
 
 # Build the model
 model = build_dnn_model(input_shape, num_classes)
@@ -82,7 +85,7 @@ model.compile(optimizer='adam',
               metrics=['accuracy'])
 
 # Train the Model
-model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+model.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_test, y_test))
 
 # Evaluate the Model
 test_loss, test_accuracy = model.evaluate(X_test, y_test)
@@ -91,11 +94,10 @@ print("Test Accuracy:", test_accuracy)
 # Make Predictions
 y_pred = np.argmax(model.predict(X_test), axis=1)
 
-# Calculate Precision, Recall, Specificity, and F1 Score
+# Calculate Precision, Recall and F1 Score
 precision = precision_score(y_test, y_pred, average='macro')
 recall = recall_score(y_test, y_pred, average='macro')
 accuracy = accuracy_score(y_test, y_pred)
-specificity = recall_score(y_test, y_pred, average='macro', pos_label=0)
 f1 = f1_score(y_test, y_pred, average='macro')
 
 print(f"Accuracy: {round(accuracy * 100, 2)}%")
