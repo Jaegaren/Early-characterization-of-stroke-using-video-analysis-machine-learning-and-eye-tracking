@@ -10,6 +10,8 @@ from keras.callbacks import Callback
 from keras.optimizers import Adam
 from keras.regularizers import L1L2
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Suppress informational messages
@@ -132,9 +134,9 @@ all_data = np.concatenate((real_data_padded, synthetic_data_padded), axis=0)
 all_labels = np.concatenate((real_labels, synthetic_labels), axis=0)
 
 # Split data
-X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.3, stratify = all_labels)
+X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.3, random_state = 41)
 
-# Define early stopååing and L1L2-regulizer
+# Define early stopping and L1L2-regulizer
 early_stopping = CustomEarlyStopping(patience=10, verbose=1,)
 reg = L1L2(l1=0.005, l2=0.005)
         
@@ -176,13 +178,39 @@ epoch_count = range(1, len(training_loss) + 1)
 scores = model.evaluate(X_test, y_test, verbose=0)
 print(f'Score: {model.metrics_names} of {scores}')
 
-predictions = model.predict(X_test)  # Use X_test here
+predictions = model.predict(X_test) 
 y_pred = np.argmax(predictions, axis=1)
-y_true = np.argmax(y_test, axis=1)  # Use y_test here
-print(f'Prediction:  ', y_pred)
-print(f'True labels: ', y_true)
+y_true = np.argmax(y_test, axis=1)
 
-print("Average validation scores across all folds:")
+cm = confusion_matrix(y_true, y_pred)
+print("Confusion Matrix:")
+print(cm)
+
+fig, ax = plt.subplots(figsize=(10, 7))
+
+# Convert the counts to percentages for annotations
+cm_percentages = ["{0:.2%}".format(value) for value in cm.flatten() / np.sum(cm)]
+cm_labels = [f"{v1}\n{v2}" for v1, v2 in zip(cm.flatten(), cm_percentages)]
+cm_labels = np.asarray(cm_labels).reshape(cm.shape)
+
+# Create the heatmap using seaborn
+sns.heatmap(cm, annot=cm_labels, fmt="", cmap='Blues', ax=ax)
+
+# Set labels and title
+ax.set_xlabel('Predicted label')
+ax.set_ylabel('True label')
+ax.set_title('Confusion Matrix with Percentages and Counts')
+
+# Set ticks
+tick_marks = np.arange(len(cm)) + 0.5
+plt.xticks(tick_marks, range(len(cm)))
+plt.yticks(tick_marks, range(len(cm)), rotation=0)
+
+# Show the plot
+plt.show()
+
+
+print("Validation scores:")
 print(f'Loss: {round(scores[0], 2)}')
 print(f'Precision: {round(scores[1] * 100, 2)}%')
 print(f'Recall: {round(scores[2] * 100, 2)}%')
