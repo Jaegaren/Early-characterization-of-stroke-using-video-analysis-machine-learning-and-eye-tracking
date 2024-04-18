@@ -93,7 +93,9 @@ num_classes = len(np.unique(y_diff))
 # Define a simple DNN model for the differences
 model_diff = tf.keras.Sequential([
     tf.keras.layers.Input(shape=input_shape_diff),
-    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(256, activation='relu'),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(128, activation='relu'),
     tf.keras.layers.Dropout(0.5),
     tf.keras.layers.Dense(64, activation='relu'),
     tf.keras.layers.Dropout(0.5),
