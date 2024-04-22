@@ -34,6 +34,16 @@ def process_files(files):
 
     return aggregated_features
 
+def multi_class_hinge_loss(y_true, scores):
+    """Calculate the multi-class hinge loss."""
+    n_samples = scores.shape[0]
+    n_classes = scores.shape[1]
+    true_scores = scores[np.arange(n_samples), y_true.astype(int)]
+    margins = np.maximum(0, 1 + scores - true_scores[:, np.newaxis])
+    margins[np.arange(n_samples), y_true.astype(int)] = 0  # Don't consider true class in sum
+    loss = np.sum(margins) / n_samples
+    return loss
+
 def train_and_evaluate(data):
     X = data.drop('label', axis=1)
     y = data['label']
@@ -42,10 +52,24 @@ def train_and_evaluate(data):
     X = imputer.fit_transform(X)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    clf = svm.SVC(kernel='rbf', gamma='scale', class_weight='balanced')
+    clf = svm.SVC(kernel='rbf', gamma='scale', class_weight='balanced', decision_function_shape='ovr')
     clf.fit(X_train, y_train)
+
+    # Get decision function scores
+    train_scores = clf.decision_function(X_train)
+    test_scores = clf.decision_function(X_test)
+
+    # Calculate hinge loss for training and validation
+    train_loss = multi_class_hinge_loss(y_train, train_scores)
+    val_loss = multi_class_hinge_loss(y_test, test_scores)
+
+    # Other metrics
     y_pred = clf.predict(X_test)
     print_metrics(y_test, y_pred)
+
+    print(f"Training Loss: {train_loss:.4f}")
+    print(f"Validation Loss: {val_loss:.4f}")
+
 
 def print_metrics(y_true, y_pred):
     accuracy = accuracy_score(y_true, y_pred)
