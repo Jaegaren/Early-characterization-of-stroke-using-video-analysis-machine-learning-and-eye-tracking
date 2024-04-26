@@ -8,6 +8,10 @@ from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
 from keras import backend as K
+from keras.regularizers import L1L2
+
+
+
 
 
 # Initialize GazeTracking
@@ -30,8 +34,9 @@ def predict_classification(model, sequence):
 # Clear session
 K.clear_session()
 
+
 # Load the LSTM model
-model = load_model('final_lstm_model.keras')
+model = load_model('my_model.h5')
 
 while True:
     # Read frame

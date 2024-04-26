@@ -164,7 +164,7 @@ model.compile(optimizer = Adam(learning_rate = 0.0005),
 
 historall_labels = model.fit(X_train, y_train,
                     validation_data=(X_test, y_test),
-                    epochs = 100,
+                    epochs = 3,
                     batch_size = 32,
                     callbacks = early_stopping)
 
@@ -228,5 +228,8 @@ plt.grid(True)
 plt.show()
 
 # Save the final model
-#model.save('final_lstm_model.keras')
-#print('Final model saved as final_lstm_model.keras')
+#model.save('final_lstm_model.h5')
+model.save('my_model.keras')
+print('Final model saved as final_lstm_model.keras')
+
+
