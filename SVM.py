@@ -10,7 +10,7 @@ from sklearn.impute import SimpleImputer
 def process_files(files):
     aggregated_features = pd.DataFrame()
     for filename in files:
-        print(f"Processing file: {filename}")
+        #print(f"Processing file: {filename}")
         df = pd.read_csv(filename)
         # Extract coordinates from strings
         df[['left_pupil_x', 'left_pupil_y']] = df['left_pupil'].str.extract(r'\((\d+),\s*(\d+)\)').astype(float)
@@ -53,6 +53,19 @@ def perform_grid_search(X_train, y_train):
 
     return results
 
+def calculate_specificity(conf_matrix, class_index):
+    total_true = np.sum(conf_matrix)
+    TP = conf_matrix[class_index, class_index]
+    FP = np.sum(conf_matrix[:, class_index]) - TP
+    FN = np.sum(conf_matrix[class_index, :]) - TP
+    TN = total_true - TP - FP - FN
+    return TN / (TN + FP) if (TN + FP) > 0 else 0
+
+def calculate_average_specificity(conf_matrix):
+    num_classes = conf_matrix.shape[0]
+    specificities = [calculate_specificity(conf_matrix, i) for i in range(num_classes)]
+    return np.mean(specificities)
+
 def train_and_evaluate(data):
     X = data.drop('label', axis=1)
     y = data['label']
@@ -73,18 +86,22 @@ def train_and_evaluate(data):
         recall = recall_score(y_test, y_pred, average='macro')
         f1 = f1_score(y_test, y_pred, average='macro')
         cm = confusion_matrix(y_test, y_pred)
+        specificity = calculate_average_specificity(cm)
+
         performance_metrics[kernel] = {
             'Accuracy': accuracy,
             'Precision': precision,
             'Recall': recall,
             'F1 Score': f1,
+            'Specificity': specificity,
             'Confusion Matrix': cm
         }
         print(f"Results for {kernel}:")
-        print(f"Accuracy: {accuracy:.2%}, Precision: {precision:.2%}, Recall: {recall:.2%}, F1 Score: {f1:.2%}")
+        print(f"Accuracy: {accuracy:.2%}, Precision: {precision:.2%}, Recall: {recall:.2%}, F1 Score: {f1:.2%}, Specificity: {specificity:.2%}")
         print(f"Confusion Matrix:\n{cm}")
 
     return performance_metrics
+
 
 # Path definition
 real_data_path = 'GazeTracking/gaze_data/real_data'
