@@ -10,13 +10,10 @@ from sklearn.impute import SimpleImputer
 def process_files(files):
     aggregated_features = pd.DataFrame()
     for filename in files:
-        #print(f"Processing file: {filename}")
         df = pd.read_csv(filename)
-        # Extract coordinates from strings
         df[['left_pupil_x', 'left_pupil_y']] = df['left_pupil'].str.extract(r'\((\d+),\s*(\d+)\)').astype(float)
         df[['right_pupil_x', 'right_pupil_y']] = df['right_pupil'].str.extract(r'\((\d+),\s*(\d+)\)').astype(float)
 
-        # Aggregate features for each file
         df_aggregated = df.agg({
             'left_pupil_x': ['mean', 'std', 'max', 'min'],
             'left_pupil_y': ['mean', 'std', 'max', 'min'],
@@ -24,11 +21,8 @@ def process_files(files):
             'right_pupil_y': ['mean', 'std', 'max', 'min']
         }).transpose()
 
-        # Flatten the DataFrame and create multi-index columns
         df_aggregated = df_aggregated.unstack().to_frame().transpose()
         df_aggregated.columns = ['_'.join(map(str, col)) for col in df_aggregated.columns.values]
-
-        # Add label information based on filename
         df_aggregated['label'] = int(os.path.basename(filename).split('_')[0])
         aggregated_features = pd.concat([aggregated_features, df_aggregated], ignore_index=True)
 
@@ -66,18 +60,9 @@ def calculate_average_specificity(conf_matrix):
     specificities = [calculate_specificity(conf_matrix, i) for i in range(num_classes)]
     return np.mean(specificities)
 
-def train_and_evaluate(data):
-    X = data.drop('label', axis=1)
-    y = data['label']
-    # Handle missing values
-    imputer = SimpleImputer(strategy='mean')
-    X = imputer.fit_transform(X)
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
+def train_and_evaluate(X_train, y_train, X_test, y_test):
     results = perform_grid_search(X_train, y_train)
 
-    # Evaluate each model
     performance_metrics = {}
     for kernel, model in results.items():
         y_pred = model.predict(X_test)
@@ -102,7 +87,6 @@ def train_and_evaluate(data):
 
     return performance_metrics
 
-
 # Path definition
 real_data_path = 'GazeTracking/gaze_data/real_data'
 synthetic_data_path = 'GazeTracking/gaze_data/synthetic_data'
@@ -111,24 +95,50 @@ synthetic_data_path = 'GazeTracking/gaze_data/synthetic_data'
 real_files = glob.glob(os.path.join(real_data_path, "*.csv"))
 synthetic_files = glob.glob(os.path.join(synthetic_data_path, "*.csv"))
 
+# Processing files
 if real_files:
     print("Processing real data...")
     real_data = process_files(real_files)
-    performance_metrics_real = train_and_evaluate(real_data)
 
 if synthetic_files:
     print("Processing synthetic data...")
     synthetic_data = process_files(synthetic_files)
-    performance_metrics_synthetic = train_and_evaluate(synthetic_data)
 
-if real_files and synthetic_files:
-    print("Processing combined data...")
-    combined_data = pd.concat([real_data, synthetic_data], ignore_index=True)
-    performance_metrics_combined = train_and_evaluate(combined_data)
+# Scenario 1: Train on real data, test on real data
+print("Scenario 1: Train on real data, test on real data")
+X_real = real_data.drop('label', axis=1)
+y_real = real_data['label']
+X_real = SimpleImputer(strategy='mean').fit_transform(X_real)
+X_train_real, X_test_real, y_train_real, y_test_real = train_test_split(X_real, y_real, test_size=0.3, random_state=42)
+performance_metrics_real = train_and_evaluate(X_train_real, y_train_real, X_test_real, y_test_real)
 
-# Optionally, save the DataFrame to a CSV file
+# Scenario 2: Train on synthetic data, test on real data
+print("Scenario 2: Train on synthetic data, test on real data")
+X_synthetic = synthetic_data.drop('label', axis=1)
+y_synthetic = synthetic_data['label']
+X_synthetic = SimpleImputer(strategy='mean').fit_transform(X_synthetic)
+performance_metrics_synthetic = train_and_evaluate(X_synthetic, y_synthetic, X_test_real, y_test_real)
+
+# Scenario 3: Train on combined data, test on combined data
+print("Scenario 3: Train on combined data, test on combined data")
+combined_data = pd.concat([real_data, synthetic_data], ignore_index=True)
+X_combined = combined_data.drop('label', axis=1)
+y_combined = combined_data['label']
+X_combined = SimpleImputer(strategy='mean').fit_transform(X_combined)
+X_train_combined, X_test_combined, y_train_combined, y_test_combined = train_test_split(X_combined, y_combined, test_size=0.3, random_state=42)
+performance_metrics_combined = train_and_evaluate(X_train_combined, y_train_combined, X_test_combined, y_test_combined)
+
+# Save performance metrics
 output_dir = '/mnt/data'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-df_performance = pd.DataFrame(performance_metrics_real)  # Change as needed or combine results
-df_performance.to_csv(os.path.join(output_dir, 'performance_metrics.csv'), index=False)
+
+# Save each scenario's performance metrics separately
+df_performance_real = pd.DataFrame(performance_metrics_real)
+df_performance_real.to_csv(os.path.join(output_dir, 'performance_metrics_real.csv'), index=False)
+
+df_performance_synthetic = pd.DataFrame(performance_metrics_synthetic)
+df_performance_synthetic.to_csv(os.path.join(output_dir, 'performance_metrics_synthetic.csv'), index=False)
+
+df_performance_combined = pd.DataFrame(performance_metrics_combined)
+df_performance_combined.to_csv(os.path.join(output_dir, 'performance_metrics_combined.csv'), index=False)
