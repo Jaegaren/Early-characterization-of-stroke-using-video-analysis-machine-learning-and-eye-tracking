@@ -142,3 +142,4 @@ df_performance_synthetic.to_csv(os.path.join(output_dir, 'performance_metrics_sy
 
 df_performance_combined = pd.DataFrame(performance_metrics_combined)
 df_performance_combined.to_csv(os.path.join(output_dir, 'performance_metrics_combined.csv'), index=False)
+
