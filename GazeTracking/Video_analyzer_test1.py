@@ -8,7 +8,7 @@ gaze = GazeTracking()
 # FOR PYCHARM:
 #video_path = 'Videos/C0003.MP4'  # Relative path from the project's root directory
 # FOR VSCODE:
-video_path = 'GazeTracking/Videos/C0003.MP4'  # Relative path from the project's root directory
+video_path = 'C:/Users/est02/OneDrive/Skrivbord/KandidatProjekt/Jacobs_repo/Early-characterization-of-stroke-using-video-analysis-machine-learning-and-eye-tracking/GazeTracking/gaze_tracking/videos/0p_S.mp4'
 video = cv2.VideoCapture(video_path)
 
 while True:
